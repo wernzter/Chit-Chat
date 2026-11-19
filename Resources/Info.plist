@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Chit-Chat</string>
+	<key>CFBundleDisplayName</key>
+	<string>Chit-Chat</string>
+	<!-- Space-free code and executable name; the display name uses a hyphen. -->
+	<key>CFBundleExecutable</key>
+	<string>ChitChat</string>
+	<!-- AppStorage migrates preferences from the previous identity at startup. -->
+	<key>CFBundleIdentifier</key>
+	<string>ai.pivotstudio.chit-chat</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>2</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.0</string>
+	<!-- Keep the app visible in the Dock and the application switcher. -->
+	<key>LSUIElement</key>
+	<false/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Chit-Chat records when you tap or hold your chosen shortcut so it can turn your speech into text.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Chit-Chat transcribes your speech on-device to insert text where you're typing.</string>
+</dict>
+</plist>

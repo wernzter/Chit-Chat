@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\tray.ico</ApplicationIcon>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <BuildWindowsIntegration Condition="'$(BuildWindowsIntegration)' == ''">$([System.OperatingSystem]::IsWindows())</BuildWindowsIntegration>
+    <DesktopIntegrationPath>..\ChitChat.Platform.Windows</DesktopIntegrationPath>
+    <DesktopIntegrationBin>$(DesktopIntegrationPath)\bin\$(Configuration)\net10.0-windows</DesktopIntegrationBin>
+  </PropertyGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**\*" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <ProjectReference Include="..\ChitChat.Core\ChitChat.Core.csproj" />
+    <ProjectReference Include="..\ChitChat.Speech\ChitChat.Speech.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(BuildWindowsIntegration)' == 'true'">
+    <ProjectReference Include="$(DesktopIntegrationPath)\ChitChat.Platform.Windows.csproj"
+                      ReferenceOutputAssembly="false"
+                      Private="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="TargetFramework;RuntimeIdentifier;SelfContained;PublishSingleFile" />
+  </ItemGroup>
+  <Target Name="PrepareDesktopSidecars" DependsOnTargets="BuildOnlySettings"
+          Condition="'$(BuildWindowsIntegration)' == 'true'">
+    <ItemGroup>
+      <_DesktopSidecar Include="$(DesktopIntegrationBin)\ChitChat.Platform.Windows.dll;$(DesktopIntegrationBin)\NAudio*.dll" />
+    </ItemGroup>
+  </Target>
+  <Target Name="StageDesktopSidecars" AfterTargets="Build" DependsOnTargets="PrepareDesktopSidecars"
+          Condition="'$(BuildWindowsIntegration)' == 'true'">
+    <Copy SourceFiles="@(_DesktopSidecar)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="AddDesktopSidecarsToPublish" BeforeTargets="ComputeResolvedFilesToPublishList"
+          DependsOnTargets="PrepareDesktopSidecars" Condition="'$(BuildWindowsIntegration)' == 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_DesktopSidecar)"
+                             RelativePath="%(_DesktopSidecar.Filename)%(_DesktopSidecar.Extension)"
+                             CopyToPublishDirectory="PreserveNewest"
+                             ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
+</Project>

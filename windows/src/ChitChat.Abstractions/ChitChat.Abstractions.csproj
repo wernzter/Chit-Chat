@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Description>Shared inputs and outputs for the desktop dictation engine</Description>
+  </PropertyGroup>
+</Project>

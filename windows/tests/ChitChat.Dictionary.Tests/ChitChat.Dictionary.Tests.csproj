@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/ChitChat.Dictionary/ChitChat.Dictionary.csproj" />
+    <None Include="../../../shared/dictionary-test-vectors.json" Link="dictionary-test-vectors.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

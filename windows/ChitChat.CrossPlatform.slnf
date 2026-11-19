@@ -1,0 +1,16 @@
+{
+  "solution": {
+    "path": "ChitChat.sln",
+    "projects": [
+      "src\\ChitChat.Abstractions\\ChitChat.Abstractions.csproj",
+      "src\\ChitChat.App\\ChitChat.App.csproj",
+      "src\\ChitChat.Core\\ChitChat.Core.csproj",
+      "src\\ChitChat.Dictionary\\ChitChat.Dictionary.csproj",
+      "src\\ChitChat.Speech\\ChitChat.Speech.csproj",
+      "src\\ChitChat.Testing\\ChitChat.Testing.csproj",
+      "tests\\ChitChat.App.Tests\\ChitChat.App.Tests.csproj",
+      "tests\\ChitChat.Core.Tests\\ChitChat.Core.Tests.csproj",
+      "tests\\ChitChat.Dictionary.Tests\\ChitChat.Dictionary.Tests.csproj"
+    ]
+  }
+}

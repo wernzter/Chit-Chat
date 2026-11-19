@@ -1,0 +1,35 @@
+# Build output and per-user tooling
+.build/
+.vs/
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.user
+xcuserdata/
+*.xcuserstate
+.DS_Store
+.claude/settings.local.json
+.claude/worktrees/
+
+# The root anchor keeps the Windows ChitChat.App source directory tracked.
+/*.app/
+
+# Local data and model downloads
+dictionary.txt
+runs.jsonl
+transcripts.jsonl
+models/
+*.nemo
+*.onnx
+
+# Credentials and signing files
+.env
+.env.*
+!.env.example
+openai-api-key
+*.key
+*.pem
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile

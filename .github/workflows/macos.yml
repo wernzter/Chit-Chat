@@ -1,0 +1,33 @@
+name: macOS
+
+on:
+  push:
+    branches: [main]
+    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.*', 'Makefile', 'Tools/**', 'Resources/**', '.github/workflows/macos.yml']
+  pull_request:
+    paths: ['Sources/**', 'Tests/**', 'shared/**', 'Package.*', 'Makefile', 'Tools/**', 'Resources/**', '.github/workflows/macos.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  swift-tests:
+    name: Swift tests
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Choose Xcode
+        run: |
+          xcode_dir="$(find /Applications -maxdepth 1 -name 'Xcode_*.app' | sort -V | tail -n 1)"
+          : "${xcode_dir:=/Applications/Xcode.app}"
+          echo "DEVELOPER_DIR=$xcode_dir/Contents/Developer" >> "$GITHUB_ENV"
+      - name: Check shared test data
+        run: cmp shared/dictionary-test-vectors.json Tests/ChitChatDictionaryTests/dictionary-test-vectors.json
+      - name: Run Swift tests
+        run: make test
+      - name: Build both icon formats
+        run: make icon

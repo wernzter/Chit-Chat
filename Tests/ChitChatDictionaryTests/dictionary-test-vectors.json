@@ -1,0 +1,350 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "replace a phrase inside a sentence",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "Please order cobalt ink today.",
+      "expected": "Please order Cobalt Ink today.",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "accept a joined pronunciation",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "Use cobaltink for the heading.",
+      "expected": "Use Cobalt Ink for the heading.",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "accept an intervening hyphen",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "Write cobalt-ink.",
+      "expected": "Write Cobalt Ink.",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "accept several spaces or a tab",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "cobalt   ink and cobalt\tink",
+      "expected": "Cobalt Ink and Cobalt Ink",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "use the replacement spelling for uppercase input",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "COBALT INK",
+      "expected": "Cobalt Ink",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "keep surrounding alphabetic or numeric characters from turning into matches",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "precobaltink and cobaltink3",
+      "expected": "precobaltink and cobaltink3",
+      "expectedCorrections": []
+    },
+    {
+      "name": "require all the words in the trigger",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "Cobalt is a color; ink is a material.",
+      "expected": "Cobalt is a color; ink is a material.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "use the longer of overlapping triggers",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "twin",
+          "write": "pair"
+        },
+        {
+          "kind": "correction",
+          "hear": "twin lens",
+          "write": "stereo camera"
+        }
+      ],
+      "input": "A twin lens and a twin.",
+      "expected": "A stereo camera and a pair.",
+      "expectedCorrections": [
+        {
+          "to": "stereo camera",
+          "count": 1
+        },
+        {
+          "to": "pair",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "count repeated occurrences together",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "Harbor view",
+          "write": "Harbourview"
+        }
+      ],
+      "input": "Harbor view, HARBOR-VIEW and harborview.",
+      "expected": "Harbourview, Harbourview and Harbourview.",
+      "expectedCorrections": [
+        {
+          "to": "Harbourview",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "name": "preserve punctuation around a replacement",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "[cobalt ink], ‘cobalt ink’, cobalt ink?",
+      "expected": "[Cobalt Ink], ‘Cobalt Ink’, Cobalt Ink?",
+      "expectedCorrections": [
+        {
+          "to": "Cobalt Ink",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "name": "leave a possessive suffix intact",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "juniper lab",
+          "write": "Juniper Labs"
+        }
+      ],
+      "input": "juniper lab's address",
+      "expected": "Juniper Labs's address",
+      "expectedCorrections": [
+        {
+          "to": "Juniper Labs",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "ignore a disabled correction while applying an enabled one",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "dry run",
+          "write": "practice",
+          "isEnabled": false
+        },
+        {
+          "kind": "correction",
+          "hear": "blue print",
+          "write": "blueprint"
+        }
+      ],
+      "input": "Review the blueprint and the dry run.",
+      "expected": "Review the blueprint and the dry run.",
+      "expectedCorrections": [
+        {
+          "to": "blueprint",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "leave bias-only terms out of the replacement pass",
+      "entries": [
+        {
+          "kind": "term",
+          "write": "Northwind"
+        }
+      ],
+      "input": "Call northwind.",
+      "expected": "Call northwind.",
+      "expectedCorrections": []
+    },
+    {
+      "name": "apply a one-word spelling correction",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "faylin",
+          "write": "Phaelin"
+        }
+      ],
+      "input": "Message Faylin.",
+      "expected": "Message Phaelin.",
+      "expectedCorrections": [
+        {
+          "to": "Phaelin",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "report separate replacements in the same transcript",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "atlas bay",
+          "write": "Atlas Bay"
+        },
+        {
+          "kind": "correction",
+          "hear": "mesa creek",
+          "write": "Mesa Creek"
+        }
+      ],
+      "input": "From atlas bay to mesa creek.",
+      "expected": "From Atlas Bay to Mesa Creek.",
+      "expectedCorrections": [
+        {
+          "to": "Atlas Bay",
+          "count": 1
+        },
+        {
+          "to": "Mesa Creek",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "return empty input without any hits",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "cobalt ink",
+          "write": "Cobalt Ink"
+        }
+      ],
+      "input": "",
+      "expected": "",
+      "expectedCorrections": []
+    },
+    {
+      "name": "insert replacement punctuation and dollar signs literally",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "quarterly budget",
+          "write": "$200 + tax"
+        }
+      ],
+      "input": "Set quarterly budget.",
+      "expected": "Set $200 + tax.",
+      "expectedCorrections": [
+        {
+          "to": "$200 + tax",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "treat punctuation in the trigger as literal",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "m.n",
+          "write": "Map North"
+        }
+      ],
+      "input": "See m.n and man.",
+      "expected": "See Map North and man.",
+      "expectedCorrections": [
+        {
+          "to": "Map North",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "match a decomposed letter against a composed trigger",
+      "entries": [
+        {
+          "kind": "correction",
+          "hear": "piñata azul",
+          "write": "Piñata Azul"
+        }
+      ],
+      "input": "Get the piñata-azul.",
+      "expected": "Get the Piñata Azul.",
+      "expectedCorrections": [
+        {
+          "to": "Piñata Azul",
+          "count": 1
+        }
+      ]
+    }
+  ]
+}

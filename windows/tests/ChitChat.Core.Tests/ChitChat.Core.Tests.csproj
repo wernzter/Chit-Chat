@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/ChitChat.Core/ChitChat.Core.csproj" />
+    <ProjectReference Include="../../src/ChitChat.Testing/ChitChat.Testing.csproj" />
+  </ItemGroup>
+</Project>

@@ -44,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     lazy var setupCheck = SetupCheck(controller: controller)
     private var recoveryPanel: RecoveryPanel?
     private var statusTask: Task<Void, Never>?
+    private var updatePanel: ReleaseUpdatePanel?
+    private var updateTask: Task<Void, Never>?
 
     override init() {
         AppStorage.migratePreferences()
@@ -99,13 +101,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         beginStatusUpdates(recoverShortcut: needsShortcut)
+        ReleaseUpdates.shared.onNoticeChange = { [weak self] in self?.refreshUpdateNotice() }
+        updateTask = Task { await ReleaseUpdates.shared.runAutomaticChecks() }
         Log.app.info("Chit-Chat ready — hold \(Settings.shared.shortcut.displayName) to dictate")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         setupCheck.stop()
         statusTask?.cancel()
+        updateTask?.cancel()
+        updatePanel?.orderOut(nil)
         controller.deactivate()
+    }
+
+    private func refreshUpdateNotice() {
+        let updates = ReleaseUpdates.shared
+        guard updates.notice != nil else {
+            updatePanel?.orderOut(nil)
+            return
+        }
+        let panel = updatePanel ?? ReleaseUpdatePanel(updates: updates)
+        updatePanel = panel
+        panel.showNotice()
     }
 
     private func observeOverlayPlacement() {
@@ -156,6 +173,7 @@ struct MenuContent: View {
     @State private var openAI = OpenAIEnhancement.shared
     @State private var settings = Settings.shared
     @State private var status = SettingsStatus.shared
+    @State private var updates = ReleaseUpdates.shared
     let openSettings: () -> Void
     var openSetup: () -> Void = {}
 
@@ -173,6 +191,9 @@ struct MenuContent: View {
         Button("Settings…", action: openSettings)
             .keyboardShortcut(",", modifiers: .command)
         Button("Check my setup…", action: openSetup)
+        if let release = updates.latestRelease {
+            Link("View Chit-Chat \(release.tag) release…", destination: release.releasePage)
+        }
         if let item = recovery.items.last {
             Button("Copy waiting dictation (\(recovery.items.count))") { recovery.copy(item) }
         }

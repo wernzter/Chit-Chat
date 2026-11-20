@@ -74,6 +74,7 @@ public sealed class MainWindow : Window
     private readonly RecordingOverlay? _recordingOverlay;
     private readonly CorrectionPopup? _correctionPopup;
     private readonly RecoveryPopup? _recoveryPopup;
+    private readonly UpdatePopup? _updatePopup;
     private WaitingDictation? _inlineRecovery;
     private WorkspacePage _page;
     private WorkspacePage _settingsPage = WorkspacePage.Recording;
@@ -97,6 +98,7 @@ public sealed class MainWindow : Window
             _recordingOverlay = new RecordingOverlay(this, composition);
             _correctionPopup = new CorrectionPopup(this, composition, composition.DismissCorrection);
             _recoveryPopup = new RecoveryPopup(this, composition, CopyWaitingAsync, DismissWaiting);
+            _updatePopup = new UpdatePopup(this, composition, OpenReleaseAsync);
         }
         Title = "Chit-Chat";
         Width = 1060;
@@ -335,6 +337,19 @@ public sealed class MainWindow : Window
         if (_session?.Recovery is { } item) await CopyWaitingAsync(item);
     }
 
+    internal async Task OpenReleaseAsync(Version version)
+    {
+        try
+        {
+            if (await Launcher.LaunchUriAsync(ReleaseUpdateClient.ReleasePage(version)))
+                _session?.Updates.Dismiss(version);
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException or System.ComponentModel.Win32Exception)
+        {
+            // Leave the notice available if the browser could not open.
+        }
+    }
+
     private async Task CopyWaitingAsync(WaitingDictation item)
     {
         if (await CopyAsync(item.Text)) DismissWaiting(item.Id);
@@ -407,7 +422,7 @@ public sealed class MainWindow : Window
             WorkspacePage.Speech => ViewKit.Scroll(_session.CreateSpeechSettingsView()),
             WorkspacePage.Text => ViewKit.Scroll(WorkspacePreferences.Text(_session, () => Navigate(WorkspacePage.OpenAI))),
             WorkspacePage.OpenAI => ViewKit.Scroll(_session.CreateOpenAiSettingsView()),
-            WorkspacePage.Access => ViewKit.Scroll(WorkspacePreferences.Access(_session, OpenSetup)),
+            WorkspacePage.Access => ViewKit.Scroll(WorkspacePreferences.Access(_session, OpenSetup, OpenReleaseAsync)),
             WorkspacePage.Setup => ViewKit.Scroll(_session.CreateSetupCheckView()),
             _ => throw new ArgumentOutOfRangeException(nameof(page)),
         };
@@ -423,6 +438,8 @@ public sealed class MainWindow : Window
             var suggestion = engine.State == DictationState.Idle ? _session.CorrectionSuggestion : null;
             _correctionPopup?.Update(suggestion, position.CorrectionPopupPosition);
             _recoveryPopup?.Update(_session.Recovery, _session.RecoveryCount);
+            _updatePopup?.Update(_session.Recovery is null && engine.State == DictationState.Idle
+                ? _session.Updates.Notice : null);
         }
         if (!IsVisible || WindowState == WindowState.Minimized) return;
         SetState(engine?.State ?? _state);
@@ -447,6 +464,7 @@ public sealed class MainWindow : Window
         _recordingOverlay?.Close();
         _correctionPopup?.Close();
         _recoveryPopup?.Close();
+        _updatePopup?.Close();
         base.OnClosed(e);
     }
 }

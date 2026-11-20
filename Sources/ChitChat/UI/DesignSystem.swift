@@ -24,6 +24,10 @@ enum DS {
         static let edgeInset: CGFloat = 24
         static let fadeDuration: TimeInterval = 0.16
     }
+    enum Updates {
+        static let width: CGFloat = 334
+        static let height: CGFloat = 106
+    }
     enum ListeningIndicator {
         static let width: CGFloat = 80
         static let height: CGFloat = 36

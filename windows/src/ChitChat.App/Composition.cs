@@ -38,10 +38,12 @@ public sealed class Composition : IAsyncDisposable
         _openAi = openAi;
         _localAi = localAi;
         _corrections = corrections;
+        Updates = new ReleaseUpdates(settings);
     }
 
     /// <summary>Preferences shared by the app windows.</summary>
     public AppSettings Settings { get; }
+    internal ReleaseUpdates Updates { get; }
     /// <summary>The local correction dictionary.</summary>
     public DictionaryFile Dictionary { get; }
     /// <summary>Recognized text saved locally.</summary>
@@ -207,6 +209,7 @@ public sealed class Composition : IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         _corrections.Dispose();
+        Updates.Dispose();
         return Engine?.DisposeAsync() ?? ValueTask.CompletedTask;
     }
 

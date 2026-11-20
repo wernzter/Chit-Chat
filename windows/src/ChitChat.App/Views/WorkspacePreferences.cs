@@ -165,7 +165,7 @@ internal static class WorkspacePreferences
                 ViewKit.Action("Open OpenAI settings", openCloud)));
     }
 
-    internal static Control Access(Composition session, Action openSetup)
+    internal static Control Access(Composition session, Action openSetup, Func<Version, Task> openRelease)
     {
         var settings = session.Settings;
         var feedback = ViewKit.Note(string.Empty);
@@ -212,7 +212,38 @@ internal static class WorkspacePreferences
                 ViewKit.Note("History and dictionary entries are saved locally for this Windows account."),
                 ViewKit.Row(ViewKit.Action("Open data folder", () => Open(dataFolder)),
                             ViewKit.Action("Open dictionary file", () => Open(session.Dictionary.FilePath))),
-                feedback));
+                feedback),
+            UpdateSettings(session.Updates, openRelease));
+    }
+
+    private static Border UpdateSettings(ReleaseUpdates updates, Func<Version, Task> openRelease)
+    {
+        var status = ViewKit.Note(string.Empty);
+        var check = ViewKit.Action("Check for updates", () => _ = updates.CheckAsync());
+        var view = new Button { Content = "View release" };
+        view.Click += async (_, _) =>
+        {
+            if (updates.Available is { } available) await openRelease(available);
+        };
+        void Refresh(object? _, EventArgs args)
+        {
+            status.Text = updates.Status;
+            status.IsVisible = !string.IsNullOrEmpty(updates.Status);
+            check.IsEnabled = !updates.IsChecking;
+            view.IsVisible = updates.Available is not null;
+        }
+
+        var card = ViewKit.Section("Updates",
+            ViewKit.Note($"Installed version {ReleaseUpdates.Installed.ToString(3)}."),
+            ViewKit.Row(check, view), status);
+        card.AttachedToVisualTree += (_, _) =>
+        {
+            updates.Changed += Refresh;
+            Refresh(null, EventArgs.Empty);
+        };
+        card.DetachedFromVisualTree += (_, _) => updates.Changed -= Refresh;
+        Refresh(null, EventArgs.Empty);
+        return card;
     }
 }
 

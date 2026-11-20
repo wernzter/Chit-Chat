@@ -41,6 +41,7 @@ public partial class App : Application
             };
 
             TrayIcon.SetIcons(this, new TrayIcons { MakeTray(desktop, workspace, session) });
+            session.Updates.Start();
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -89,6 +90,12 @@ public partial class App : Application
         menu.Items.Add(mute);
         menu.Items.Add(openAi);
         menu.Items.Add(openAiStatus);
+        var update = new NativeMenuItem("View Chit-Chat update");
+        update.Click += async (_, _) =>
+        {
+            if (session.Updates.Available is { } version) await workspace.OpenReleaseAsync(version);
+        };
+        menu.Items.Add(update);
         menu.Items.Add(new NativeMenuItemSeparator());
         menu.Items.Add(Item("Quit Chit-Chat", () =>
         {
@@ -99,6 +106,7 @@ public partial class App : Application
         menu.NeedsUpdate += (_, _) => Refresh();
         session.Settings.Changed += (_, _) => Refresh();
         session.DictationAvailabilityChanged += (_, _) => Refresh();
+        session.Updates.Changed += (_, _) => Refresh();
         Refresh();
 
         using var image = AssetLoader.Open(new Uri("avares://ChitChat.App/Assets/tray.ico"));
@@ -145,6 +153,7 @@ public partial class App : Application
             openAi.IsChecked = data.OpenAi.Enabled;
             openAiStatus.Header = session.OpenAiStatus;
             openAiStatus.IsVisible = !string.IsNullOrWhiteSpace(session.OpenAiStatus);
+            update.IsVisible = session.Updates.Available is not null;
         }
     }
 

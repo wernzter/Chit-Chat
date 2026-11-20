@@ -24,6 +24,8 @@ local Ollama model. **OpenAI** lets you save and test an API key, choose a model
 measured speed, and test your prompt. Enabling OpenAI sends the transcript and prompt
 to OpenAI. The key is stored in Windows Credential Manager. **Access & data** opens
 local files under `%LOCALAPPDATA%\ChitChat` and Windows microphone privacy settings.
+It also offers **Check for updates**. Chit-Chat checks GitHub at launch and daily while open.
+When a newer release is available, the notice opens the download page on request.
 
 ## Build from source
 

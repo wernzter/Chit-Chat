@@ -143,6 +143,9 @@ struct SettingsPage: View {
                 }
                 note("Edit, copy, or delete transcripts from History in the sidebar. Saving an edit also teaches your dictionary.")
             }
+            card("Updates") {
+                ReleaseUpdateView()
+            }
         }
     }
 

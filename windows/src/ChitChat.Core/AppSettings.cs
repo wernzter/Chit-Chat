@@ -53,6 +53,8 @@ public sealed record SettingsData
     public bool InjectText { get; init; } = true;
     /// <summary>Whether to keep completed recordings in local history.</summary>
     public bool KeepHistory { get; init; } = true;
+    /// <summary>The release whose update notice the user dismissed.</summary>
+    public string? DismissedUpdateVersion { get; init; }
 }
 
 /// <summary>Loads and updates local application preferences.</summary>

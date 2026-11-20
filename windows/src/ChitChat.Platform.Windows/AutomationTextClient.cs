@@ -14,7 +14,8 @@ internal static class AutomationTextClient
     private static readonly Guid TextInterface = new("32EBA289-3583-42C9-9C59-3B6D9A1E9B6A");
     private static readonly Guid Text2Interface = new("506A921A-FCC9-409F-B23B-37EB74106872");
     private static readonly char[] EmptyCharacters = new char[MaximumText + 1];
-    private const uint ProviderBudget = 60;
+    private const uint ConnectionBudget = 1_000;
+    private const uint TransactionBudget = 500;
     private const int IsPasswordProperty = 30019;
     private const int ValueIsReadOnlyProperty = 30046;
     private const int IsReadOnlyAttribute = 40015;
@@ -31,8 +32,8 @@ internal static class AutomationTextClient
     internal sealed record Snapshot<T>(int[] Identity, T? Value) where T : class;
 
     internal static Snapshot<T>? Read<T>(uint owner, int[]? expectedIdentity, Func<bool> safe,
-                                         ReadSnapshot<T> read) where T : class =>
-        WithFocusedElement(owner, safe, (client, element, identity) =>
+                                         ReadSnapshot<T> read, bool waitForEditor = false) where T : class =>
+        WithFocusedElement(owner, safe, waitForEditor, (client, element, identity) =>
         {
             if (expectedIdentity is not null && !identity.AsSpan().SequenceEqual(expectedIdentity)) return null;
             var valueReadOnly = ReadBooleanProperty(element, ValueIsReadOnlyProperty);
@@ -50,17 +51,29 @@ internal static class AutomationTextClient
             return new Snapshot<T>(identity, value);
         });
 
-    private static T? WithFocusedElement<T>(uint owner, Func<bool> safe, Func<ComPointer, ComPointer, int[], T?> access)
+    private static T? WithFocusedElement<T>(uint owner, Func<bool> safe, bool waitForEditor,
+                                            Func<ComPointer, ComPointer, int[], T?> access)
         where T : class
     {
         if (!safe() || InitializeApartment(0, 0) < 0) return null;
         try
         {
             using var client = Take(CreateInstance(in ClientClass, 0, 1, in ClientInterface, out var native), native);
-            if (client is null || SetTimeout(client, 61) < 0 || SetTimeout(client, 63) < 0 || !safe()) return null;
-            using var element = GetObject(client, 8);
-            return element is not null && TryIdentify(element, owner, safe, out var identity)
-                ? access(client, element, identity) : null;
+            if (client is null || SetTimeout(client, 61, ConnectionBudget) < 0 ||
+                SetTimeout(client, 63, TransactionBudget) < 0) return null;
+
+            while (safe())
+            {
+                using var element = GetObject(client, 8);
+                if (element is not null && ReadInteger(element, 26, out var focused) && focused != 0)
+                    return TryIdentify(element, owner, safe, out var identity) ? access(client, element, identity) : null;
+
+                // A cold provider can temporarily return a pane without keyboard focus.
+                // Keep the native focus guard active and only retry the initial snapshot.
+                if (!waitForEditor || !safe()) break;
+                Thread.Sleep(50);
+            }
+            return null;
         }
         finally
         {
@@ -124,7 +137,6 @@ internal static class AutomationTextClient
         if (!safe() ||
             !ReadInteger(element, 20, out var process) || process <= 0 || (uint)process != owner ||
             !ReadInteger(element, 21, out var type) || type is not (EditType or DocumentType) ||
-            !ReadInteger(element, 26, out var focused) || focused == 0 ||
             !ReadInteger(element, 28, out var enabled) || enabled == 0 ||
             ReadBooleanProperty(element, IsPasswordProperty) != false || !safe())
             return false;
@@ -228,8 +240,8 @@ internal static class AutomationTextClient
     private static bool ReadInteger(ComPointer pointer, int slot, out int value) =>
         Slot<OutInteger>(pointer, slot)(pointer.Pointer, out value) >= 0;
 
-    private static int SetTimeout(ComPointer pointer, int slot) =>
-        Slot<WriteUnsigned>(pointer, slot)(pointer.Pointer, ProviderBudget);
+    private static int SetTimeout(ComPointer pointer, int slot, uint budget) =>
+        Slot<WriteUnsigned>(pointer, slot)(pointer.Pointer, budget);
 
     private static ComPointer? GetObject(ComPointer pointer, int slot) =>
         Take(Slot<OutReference>(pointer, slot)(pointer.Pointer, out var value), value);

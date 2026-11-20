@@ -13,13 +13,15 @@ internal interface IFocusedEditObservation
 
 internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus, bool watchEdits) : IFocusedEditObservation
 {
-    private static readonly TimeSpan SnapshotBudget = TimeSpan.FromMilliseconds(400);
+    // Browsers can take time to initialize accessibility when first queried.
+    private static readonly TimeSpan InitialBudget = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan SnapshotBudget = TimeSpan.FromMilliseconds(800);
     private static readonly TimeSpan ConfirmationWindow = TimeSpan.FromSeconds(2);
     private static int _busy;
 
-    private readonly Task<AutomationTextClient.Snapshot<EditorAnchor>?>? _initial = StartProbe(hasFocus,
+    private readonly Task<AutomationTextClient.Snapshot<EditorAnchor>?>? _initial = StartProbe(hasFocus, InitialBudget,
         safe => AutomationTextClient.Read(owner, expectedIdentity: null, safe,
-            (text, start, end, _) => new EditorAnchor(text, start, end)));
+            (text, start, end, _) => new EditorAnchor(text, start, end), waitForEditor: true));
     private Evidence? _baseline;
     private long? _deliveredAt;
     private bool _available = true;
@@ -30,7 +32,7 @@ internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus,
     {
         _baseline = null;
         _deliveredAt = null;
-        var initial = WaitFor(_initial);
+        var initial = WaitFor(_initial, InitialBudget);
         if (initial is null) return End();
 
         var check = Snapshot<DeliveryEvidence>(initial.Identity, (text, start, end, identity) =>
@@ -77,9 +79,10 @@ internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus,
 
     private AutomationTextClient.Snapshot<T>? Snapshot<T>(int[] identity, AutomationTextClient.ReadSnapshot<T> read)
         where T : class =>
-        WaitFor(StartProbe(hasFocus, safe => AutomationTextClient.Read(owner, identity, safe, read)));
+        WaitFor(StartProbe(hasFocus, SnapshotBudget, safe => AutomationTextClient.Read(owner, identity, safe, read)),
+            SnapshotBudget);
 
-    private static Task<T?>? StartProbe<T>(Func<bool> hasFocus, Func<Func<bool>, T?> run) where T : class
+    private static Task<T?>? StartProbe<T>(Func<bool> hasFocus, TimeSpan budget, Func<Func<bool>, T?> run) where T : class
     {
         if (!hasFocus() || Interlocked.CompareExchange(ref _busy, 1, 0) != 0) return null;
         var started = Stopwatch.GetTimestamp();
@@ -87,7 +90,7 @@ internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus,
         {
             try
             {
-                return run(() => Stopwatch.GetElapsedTime(started) < SnapshotBudget && hasFocus());
+                return run(() => Stopwatch.GetElapsedTime(started) < budget && hasFocus());
             }
             catch (COMException)
             {
@@ -100,7 +103,7 @@ internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus,
         });
     }
 
-    private static T? WaitFor<T>(Task<T?>? worker) where T : class
+    private static T? WaitFor<T>(Task<T?>? worker, TimeSpan budget) where T : class
     {
         if (worker is null) return null;
 
@@ -108,7 +111,7 @@ internal sealed class AutomationEditObservation(uint owner, Func<bool> hasFocus,
         // The global lease stays held until that call exits, so later attempts cannot pile up.
         try
         {
-            return worker.WaitAsync(SnapshotBudget).GetAwaiter().GetResult();
+            return worker.WaitAsync(budget).GetAwaiter().GetResult();
         }
         catch (TimeoutException)
         {

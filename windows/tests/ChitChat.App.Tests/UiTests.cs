@@ -1,10 +1,12 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
-using Avalonia.Themes.Fluent;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ChitChat.Abstractions;
 using ChitChat.App.Views;
 using ChitChat.Core;
 using ChitChat.Dictionary;
@@ -14,12 +16,10 @@ using Shouldly;
 
 namespace ChitChat.AppTests;
 
-public sealed class HeadlessChitChat : Application
+public static class HeadlessChitChat
 {
     public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<HeadlessChitChat>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
-
-    public override void Initialize() => Styles.Add(new FluentTheme());
+        AppBuilder.Configure<ChitChat.App.App>().UseHeadless(new AvaloniaHeadlessPlatformOptions());
 }
 
 public sealed class UiTests
@@ -65,6 +65,33 @@ public sealed class UiTests
     }
 
     [AvaloniaFact]
+    public void SidebarShowsEachWorkspaceSectionWithoutReplacingTheRecordControl()
+    {
+        var shell = new MainWindow();
+        shell.Show();
+        try
+        {
+            var header = shell.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "WorkspaceTitle");
+            var record = shell.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "RecordButton");
+            var routes = new[]
+            {
+                ("NavDictionary", "Dictionary"), ("NavRecording", "Recording"), ("NavSpeech", "Speech engine"),
+                ("NavText", "Text & AI"), ("NavOpenAI", "OpenAI"), ("NavAccess", "Access & data"),
+                ("NavSetup", "Check my setup"), ("NavHistory", "History"),
+            };
+            foreach (var (name, title) in routes)
+            {
+                var nav = shell.GetVisualDescendants().OfType<ToggleButton>().Single(button => button.Name == name);
+                nav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                header.Text.ShouldBe(title);
+                nav.IsChecked.ShouldBe(true);
+                record.IsEnabled.ShouldBe(name != "NavSetup");
+            }
+        }
+        finally { shell.Close(); }
+    }
+
+    [AvaloniaFact]
     public void HistorySearchFiltersByTranscriptText()
     {
         using var data = new TempData();
@@ -78,6 +105,33 @@ public sealed class UiTests
             Search(contents, "JUNIPER");
             VisibleLabels(contents).ShouldContain("Juniper appointment");
             VisibleLabels(contents).ShouldNotContain("Harbourview booking");
+        }
+        finally { host.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void HistoryEditorPersistsTheUpdatedTranscript()
+    {
+        using var data = new TempData();
+        var path = data.PathFor("history.jsonl");
+        var history = new TranscriptStore(path);
+        history.Add(new TranscriptRecord { Text = "juniper lab" });
+        var contents = new TranscriptionsView(history);
+        var host = Open(contents);
+        try
+        {
+            var edit = contents.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Edit"));
+            edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Dispatcher.UIThread.RunJobs();
+            var dialog = host.OwnedWindows.Single();
+            var editor = dialog.GetVisualDescendants().OfType<TextBox>().Single();
+            var save = dialog.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Save & learn"));
+            save.IsEnabled.ShouldBeFalse();
+            editor.Text = "Juniper Labs";
+            Dispatcher.UIThread.RunJobs();
+            save.IsEnabled.ShouldBeTrue();
+            save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            new TranscriptStore(path).Records.Single().Text.ShouldBe("Juniper Labs");
         }
         finally { host.Close(); }
     }
@@ -101,17 +155,48 @@ public sealed class UiTests
     }
 
     [AvaloniaFact]
-    public void SettingsWindowShowsTheSavedModelDirectory()
+    public void SpeechSettingsShowTheSavedModelDirectory()
     {
         using var data = new TempData();
         var settings = new AppSettings(data.PathFor("settings.json"));
         var directory = data.PathFor("speech-model");
         settings.Update(settings.Data with { ModelDirectory = directory });
-        var window = new SettingsWindow(settings);
-        window.Show();
+        var window = Open(new SpeechSettingsView(settings));
         try
         {
             window.GetVisualDescendants().OfType<TextBox>().Select(control => control.Text).ShouldContain(directory);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void OpenAISettingsLetTheUserSaveAProtectedKeyAndTestTheConnection()
+    {
+        using var data = new TempData();
+        var path = data.PathFor("settings.json");
+        var settings = new AppSettings(path);
+        settings.Update(settings.Data);
+        var keyStore = new MemoryKeyStore();
+        var view = new OpenAiSettingsView(settings, new OpenAiEnhancement(keyStore));
+        var window = Open(view);
+        try
+        {
+            var input = view.GetVisualDescendants().OfType<TextBox>().Single(box => box.PasswordChar != '\0');
+            var test = view.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Test connection"));
+            var save = view.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Save key"));
+            input.IsEnabled.ShouldBeTrue();
+            test.IsEnabled.ShouldBeTrue();
+            save.IsEnabled.ShouldBeFalse();
+
+            const string sample = "sample-key-for-ui-test";
+            input.Text = sample;
+            Dispatcher.UIThread.RunJobs();
+            test.Content.ShouldBe("Save & test connection");
+            save.IsEnabled.ShouldBeTrue();
+            save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            keyStore.Read().ShouldBe(sample);
+            File.ReadAllText(path).ShouldNotContain(sample);
+            string.IsNullOrEmpty(input.Text).ShouldBeTrue();
         }
         finally { window.Close(); }
     }
@@ -142,5 +227,13 @@ public sealed class UiTests
         public string PathFor(string file) => Path.Combine(_storage.FullName, file);
 
         public void Dispose() => _storage.Delete(recursive: true);
+    }
+
+    private sealed class MemoryKeyStore : IOpenAiKeyStore
+    {
+        private string? _key;
+        public string? Read() => _key;
+        public void Save(string key) => _key = key;
+        public void Remove() => _key = null;
     }
 }

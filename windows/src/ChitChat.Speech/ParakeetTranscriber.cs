@@ -26,6 +26,8 @@ public sealed class ParakeetTranscriber(string modelDirectory) : ITranscriber
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ChitChat", "models", ModelFolder),
         AppStorage.LegacyModelDirectory,
         Path.Combine(AppContext.BaseDirectory, "models", ModelFolder),
+        SpeechModelInstaller.InstalledModelPath(SpeechModelVariant.English),
+        SpeechModelInstaller.InstalledModelPath(SpeechModelVariant.Multilingual),
     ];
 
     /// <summary>Finds the first complete default model location.</summary>
@@ -33,7 +35,17 @@ public sealed class ParakeetTranscriber(string modelDirectory) : ITranscriber
 
     /// <summary>Checks whether a directory contains all four expected files.</summary>
     /// <param name="directory">The model location.</param>
-    public static bool IsComplete(string directory) => RequiredFiles.All(file => File.Exists(Path.Combine(directory, file)));
+    public static bool IsComplete(string directory)
+    {
+        try
+        {
+            return RequiredFiles.All(file => new FileInfo(Path.Combine(directory, file)) is { Exists: true, Length: > 0 });
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    }
 
     /// <inheritdoc />
     public bool IsReady

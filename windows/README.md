@@ -1,12 +1,29 @@
 # Chit-Chat on Windows
 
-Chit-Chat uses Right Ctrl for push-to-talk by default. Hold to record and release to transcribe.
-Transcription runs locally with Parakeet. The app inserts the result into the focused editor
-and offers a searchable history. Configure the shortcut, text insertion, history, and model
-location in Settings. The dictionary accepts preferred terms and spelling corrections.
+Open **Speech engine** in the sidebar and download a model before recording.
 
-Install the [Parakeet model](../docs/PARAKEET-WINDOWS.md) before the first dictation. Chit-Chat
-looks under `%LOCALAPPDATA%\ChitChat` for settings, history, the dictionary, and model files.
+- **Parakeet** transcribes after you stop. Choose English or multilingual, or
+  [use an existing model folder](../docs/PARAKEET-WINDOWS.md).
+- **Live speech** shows provisional text in the main window as you speak. Download the
+  English Zipformer model for this mode. Both modes run on this computer.
+
+Hold **Right Ctrl** to record and release to finish, or tap once to start and again to stop.
+**Recording** lets you change the shortcut, choose indicator positions, control the two
+recording cues, mute audio outputs during capture, and set how long to
+watch the inserted text for corrections. **Check my setup** tests the actual shortcut,
+microphone level, and insertion into a dedicated test field.
+
+Chit-Chat sends text to the editor that had focus when recording began. When the destination
+is no longer available or cannot accept safe insertion, **Copy waiting dictation** keeps
+the text available in the notification area. In supported editors, correcting an inserted
+word can offer a dictionary entry with a 10-second cancel countdown. You can also edit,
+copy, and delete saved transcripts from **History**.
+
+**Text & AI** includes basic local cleanup and optional on-device smart cleanup with a
+local Ollama model. **OpenAI** lets you save and test an API key, choose a model, compare
+measured speed, and test your prompt. Enabling OpenAI sends the transcript and prompt
+to OpenAI. The key is stored in Windows Credential Manager. **Access & data** opens
+local files under `%LOCALAPPDATA%\ChitChat` and Windows microphone privacy settings.
 
 ## Build from source
 

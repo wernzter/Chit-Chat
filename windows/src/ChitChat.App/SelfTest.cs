@@ -74,7 +74,7 @@ public static class SelfTest
         var capture = services.CreateCapture();
         try
         {
-            return services.CreateOutput() is not null && !capture.IsCapturing;
+            return services.CreateOutput() is not null && services.CreateOpenAiKeyStore() is not null && !capture.IsCapturing;
         }
         finally
         {

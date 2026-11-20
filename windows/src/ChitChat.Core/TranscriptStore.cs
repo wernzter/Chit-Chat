@@ -16,11 +16,19 @@ public sealed record TranscriptRecord
     public double AudioSeconds { get; init; }
     /// <summary>The time spent preparing the final text.</summary>
     public double ProcessingSeconds { get; init; }
+    /// <summary>Whether this run used the live speech engine. Existing records used Parakeet.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool UsedStreamingSpeech { get; init; }
     /// <summary>The final dictation text.</summary>
     public string Text { get; init; } = string.Empty;
     /// <summary>Dictionary corrections applied to the dictation.</summary>
     public IReadOnlyList<AppliedCorrection>? Corrections { get; init; }
 }
+
+/// <summary>The saved text before and after a history edit.</summary>
+/// <param name="Original">The previous transcript.</param>
+/// <param name="Edited">The new transcript.</param>
+public sealed record TranscriptEdit(string Original, string Edited);
 
 /// <summary>Maintains a newest-first view backed by a newline-delimited JSON log.</summary>
 public sealed class TranscriptStore
@@ -43,6 +51,8 @@ public sealed class TranscriptStore
     public IReadOnlyList<TranscriptRecord> Records => _newest;
     /// <summary>Notification that the view changed.</summary>
     public event EventHandler? Changed;
+    /// <summary>Emits a correction after the edited history has been persisted.</summary>
+    public event EventHandler<TranscriptEdit>? Edited;
 
     /// <summary>Reloads the log and skips individual damaged lines.</summary>
     public void Reload()
@@ -90,6 +100,23 @@ public sealed class TranscriptStore
     /// <summary>Removes a record by identifier.</summary>
     /// <param name="id">The identifier to remove.</param>
     public void Remove(Guid id) => Save(_chronological.Where(record => record.Id != id).ToArray());
+
+    /// <summary>Replaces the text for a saved dictation while retaining its identity and timing.</summary>
+    /// <param name="id">The history entry to edit.</param>
+    /// <param name="text">The corrected transcript.</param>
+    public bool UpdateText(Guid id, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return false;
+        var index = _chronological.FindIndex(record => record.Id == id);
+        if (index < 0) return false;
+        var previous = _chronological[index];
+        if (string.Equals(previous.Text, text, StringComparison.Ordinal)) return true;
+        TranscriptRecord[] updated = [.._chronological];
+        updated[index] = previous with { Text = text };
+        Save(updated);
+        Edited?.Invoke(this, new TranscriptEdit(previous.Text, text));
+        return true;
+    }
 
     /// <summary>Removes all history.</summary>
     public void Clear() => Save([]);

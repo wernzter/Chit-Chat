@@ -113,9 +113,19 @@ public sealed class StorageTests : IDisposable
         var settings = new AppSettings(path);
         settings.Data.PushToTalkKey.ShouldBe(0xA3);
 
-        var replacement = settings.Data with { PushToTalkKey = 0x7C, InjectText = false, KeepHistory = false };
+        var replacement = settings.Data with
+        {
+            PushToTalkKey = 0x7C, ShortcutModifiers = ChitChat.Abstractions.HotkeyModifiers.Control,
+            TapToToggle = true, InjectText = false, KeepHistory = false, IndicatorPosition = RecordingIndicatorPosition.Top,
+        };
         settings.Update(replacement);
-        new AppSettings(path).Data.ShouldBe(replacement);
+        var reloaded = new AppSettings(path).Data;
+        reloaded.PushToTalkKey.ShouldBe(replacement.PushToTalkKey);
+        reloaded.ShortcutModifiers.ShouldBe(replacement.ShortcutModifiers);
+        reloaded.TapToToggle.ShouldBeTrue();
+        reloaded.InjectText.ShouldBeFalse();
+        reloaded.KeepHistory.ShouldBeFalse();
+        reloaded.IndicatorPosition.ShouldBe(RecordingIndicatorPosition.Top);
     }
 
     [Fact]
@@ -123,7 +133,44 @@ public sealed class StorageTests : IDisposable
     {
         var path = Item("broken.json");
         File.WriteAllText(path, "broken");
-        new AppSettings(path).Data.ShouldBe(new SettingsData());
+        var defaults = new AppSettings(path).Data;
+        defaults.PushToTalkKey.ShouldBe(0xA3);
+        defaults.InjectText.ShouldBeTrue();
+        defaults.KeepHistory.ShouldBeTrue();
+        defaults.CleanupEnabled.ShouldBeTrue();
+        defaults.OpenAi.Enabled.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SavingAnEditDoesNotReplaceIdentityOrDuration()
+    {
+        var path = Item("edited.jsonl");
+        var history = new TranscriptStore(path);
+        var entry = Entry("Send it to joniper tomorrow.");
+        history.Add(entry);
+        TranscriptEdit? emitted = null;
+        history.Edited += (_, edit) => emitted = edit;
+
+        history.UpdateText(entry.Id, "Send it to Juniper tomorrow.").ShouldBeTrue();
+        var saved = new TranscriptStore(path).Records.ShouldHaveSingleItem();
+        saved.ShouldBe(entry with { Text = "Send it to Juniper tomorrow." });
+        emitted.ShouldNotBeNull();
+        var learned = TranscriptCleanup.LearnFrom(emitted).ShouldHaveSingleItem();
+        learned.Hear.ShouldBe("joniper");
+        learned.Write.ShouldBe("Juniper");
+        history.UpdateText(entry.Id, "   ").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void LearningAcceptsIsolatedSpellingChangesAndSkipsConflictingReplacements()
+    {
+        var changes = TranscriptCleanup.LearnFrom(new TranscriptEdit(
+            "Ask molenbrok and harberview tomorrow.", "Ask Mollenbrook and Harbourview tomorrow."));
+        changes.Select(entry => entry.Write).ShouldBe(["Mollenbrook", "Harbourview"]);
+
+        var ambiguous = TranscriptCleanup.LearnFrom(new TranscriptEdit(
+            "Tell joniper that joniper agrees.", "Tell Jennifer that Juniper agrees."));
+        ambiguous.ShouldBeEmpty();
     }
 
     private string Item(string name) => Path.Combine(_directory.FullName, name);

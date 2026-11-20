@@ -66,19 +66,94 @@ public sealed class DictationEngineTests
     }
 
     [Fact]
+    public async Task UsesTheOriginalEditorAndPlaysTheFinishCueAfterFailedDelivery()
+    {
+        var trigger = new FakeHotkeySource();
+        var defaultTarget = new RecordingTextInjector();
+        var actions = new List<string>();
+        await using var engine = new DictationEngine(FakeAudioCapture.Tone(0.25), trigger,
+            new FakeTranscriber("send to joniper"), defaultTarget,
+            () => [DictionaryEntry.Correction("joniper", "Juniper")], options: new DictationOptions
+            {
+                CaptureOutput = () => new DelegateOutput(text =>
+                {
+                    actions.Add(text);
+                    return false;
+                }),
+                PlayCue = starting => actions.Add(starting ? "start" : "done"),
+                PrepareText = (text, _) => Task.FromResult(TranscriptCleanup.Format(text)),
+            });
+        engine.DeliveryFailed += (_, text) => actions.Add("recovery " + text);
+
+        await PressAndReleaseAsync(engine, trigger);
+
+        defaultTarget.Injected.ShouldBeEmpty();
+        actions.ShouldBe(["start", "Send to Juniper.", "recovery Send to Juniper.", "done"]);
+    }
+
+    [Fact]
+    public async Task StreamingShowsProvisionalTextAndDeliversTheFinalTextOnce()
+    {
+        var trigger = new FakeHotkeySource();
+        var delivery = new RecordingTextInjector();
+        var offline = new FakeTranscriber();
+        var live = new StreamingSpeech();
+        string? preview = null;
+        await using var engine = new DictationEngine(FakeAudioCapture.Tone(0.25), trigger, offline, delivery,
+            () => [DictionaryEntry.Term("Juniper")], options: new DictationOptions
+            {
+                StartStreamingSpeech = hints =>
+                {
+                    hints.ShouldBe(["Juniper"]);
+                    return live;
+                },
+            });
+        engine.Changed += (_, _) => { if (engine.PreviewText is { } text) preview = text; };
+
+        await PressAndReleaseAsync(engine, trigger, waitForPreview: true);
+
+        preview.ShouldBe("Meet at");
+        engine.PreviewText.ShouldBeNull();
+        delivery.Injected.ShouldBe(["Meet at Juniper"]);
+        offline.SegmentLengths.ShouldBeEmpty();
+        live.Disposed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task SetupReceivesThePhysicalShortcutWithoutStartingDictation()
+    {
+        var trigger = new FakeHotkeySource();
+        await using var engine = new DictationEngine(FakeAudioCapture.Tone(0.25), trigger,
+            new FakeTranscriber("after setup"), new RecordingTextInjector(), () => []);
+        var presses = new List<bool>();
+        using (engine.TryBeginSetup(presses.Add).ShouldNotBeNull())
+        {
+            trigger.Press();
+            engine.TogglePushToTalk();
+            trigger.Release();
+            engine.State.ShouldBe(DictationState.Idle);
+        }
+        presses.ShouldBe([true, false]);
+
+        await PressAndReleaseAsync(engine, trigger);
+    }
+
+    [Fact]
     public void CoreAssemblyReferencesOnlyPlatformNeutralServices()
     {
         typeof(DictationEngine).Assembly.GetReferencedAssemblies()
             .ShouldNotContain(dependency => dependency.Name!.StartsWith("ChitChat.Platform.", StringComparison.Ordinal));
     }
 
-    private static async Task PressAndReleaseAsync(DictationEngine engine, FakeHotkeySource trigger)
+    private static async Task PressAndReleaseAsync(DictationEngine engine, FakeHotkeySource trigger,
+                                                   bool waitForPreview = false)
     {
         var recorded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnChange(object? sender, EventArgs e)
         {
-            if (engine.State == DictationState.Recording && engine.Level > 0)
+            if (engine.State == DictationState.Recording && engine.Level > 0 &&
+                (!waitForPreview || engine.PreviewText is not null))
                 recorded.TrySetResult();
             if (engine.State == DictationState.Idle && recorded.Task.IsCompleted)
                 finished.TrySetResult();
@@ -97,6 +172,20 @@ public sealed class DictationEngineTests
         {
             engine.Changed -= OnChange;
         }
+    }
+
+    private sealed class DelegateOutput(Func<string, bool> inject) : ITextInjector
+    {
+        public ValueTask<bool> InjectAsync(string text, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(inject(text));
+    }
+
+    private sealed class StreamingSpeech : IStreamingSpeechSession
+    {
+        public bool Disposed { get; private set; }
+        public string Feed(ReadOnlyMemory<float> samples) => "Meet at";
+        public string Finish() => "Meet at Juniper";
+        public void Dispose() => Disposed = true;
     }
 }
 

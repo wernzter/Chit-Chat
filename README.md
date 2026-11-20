@@ -1,8 +1,11 @@
 # Chit-Chat
 
-On-device dictation for macOS 26. Record using a custom keyboard shortcut or the app's
+On-device dictation for macOS 26 and Windows. Record using a custom keyboard shortcut or the app's
 Record button. Chit-Chat transcribes with the selected speech engine, cleans up the text,
 optionally enhances it through OpenAI, applies your dictionary, and inserts the result into the focused text field.
+
+See [Chit-Chat on Windows](windows/README.md) for the Windows setup and settings. The
+instructions below describe the macOS build.
 
 ## Run locally
 
@@ -229,10 +232,8 @@ Model discovery uses [List models](https://developers.openai.com/api/reference/r
 - `Sources/ChitChatDictionary`: dictionary correction logic.
 - `Tests`: shortcut behavior, correction learning and timing, persistence, and shared dictionary vectors.
 
-The Windows implementation is separate under [windows/](windows/README.md). It builds and
-runs automated checks, but real microphone capture, physical hotkeys, and text insertion
-have not been verified on Windows hardware. Its Parakeet setup is documented in
-[docs/PARAKEET-WINDOWS.md](docs/PARAKEET-WINDOWS.md).
+The Windows implementation lives under [windows/](windows/README.md) and shares the
+dictionary behavior with macOS.
 
 Read [AGENTS.md](AGENTS.md) before changing platform behavior or the dictionary contract.
 

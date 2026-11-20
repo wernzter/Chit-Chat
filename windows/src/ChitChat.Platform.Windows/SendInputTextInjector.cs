@@ -3,47 +3,84 @@ using ChitChat.Abstractions;
 
 namespace ChitChat.Platform.Windows;
 
-/// <summary>Delivers completed dictation to the foreground editor by synthesizing keystrokes.</summary>
-public sealed class SendInputTextInjector : ITextInjector
+/// <summary>Delivers completed dictation to the original foreground editor.</summary>
+public sealed class SendInputTextInjector : ITextInjector, ITextEditObserver
 {
-    private const int Return = 0x0D;
-    private const int Control = 0x11;
     private const uint Release = 0x0002;
     private const uint Unicode = 0x0004;
     private const int PageSize = 240;
 
     private static readonly int NativeSize = Marshal.SizeOf<Input>();
+    private IFocusedEditObservation? _editObservation;
+    private bool _requiresSafeEditor;
 
-    /// <summary>Optional dispatcher-backed paste for editors that support the clipboard.</summary>
-    public Func<string, CancellationToken, Task<bool>>? ClipboardPaste { get; init; }
+    /// <summary>Foreground window that must still be active when this injector runs.</summary>
+    public nint? ExpectedWindow { get; init; }
 
-    /// <summary>Time for the clipboard to settle before issuing a paste.</summary>
-    public static TimeSpan ClipboardSettleDelay => TimeSpan.FromMilliseconds(60);
-    /// <summary>Time for the target to read the clipboard before restoring it.</summary>
-    public static TimeSpan PasteSettleDelay => TimeSpan.FromMilliseconds(500);
+    /// <summary>Native editor control that must still have focus when available.</summary>
+    public nint? ExpectedFocus { get; init; }
 
     /// <inheritdoc />
-    public async ValueTask<bool> InjectAsync(string text, CancellationToken cancellationToken)
+    public bool CanObserveEdits => _editObservation?.IsAvailable == true;
+
+    /// <inheritdoc />
+    public bool TryReadEditedText(string inserted, out string? edited)
+    {
+        edited = null;
+        return _editObservation is { } observation && observation.TryRead(inserted, out edited);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<bool> InjectAsync(string text, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (text.Length == 0) return true;
+        if (text.Length == 0) return ValueTask.FromResult(true);
 
-        var multiline = text.Contains('\n') || text.Contains('\r');
-        if (ClipboardPaste is { } paste && (multiline || text.Length > 2000))
+        // The setup check supplies its own window. An otherwise unbound injector must still
+        // verify a foreground editor before reading or sending keys to it.
+        var target = _requiresSafeEditor || ExpectedWindow is not null ? this : CaptureForeground();
+        return ValueTask.FromResult(target.Inject(text, cancellationToken));
+    }
+
+    private bool Inject(string text, CancellationToken cancellationToken)
+    {
+        var target = GetForegroundWindow();
+        if (!IsTarget(target)) return false;
+
+        var delivered = false;
+        try
         {
-            return await paste(text, cancellationToken).ConfigureAwait(false);
+            if (_requiresSafeEditor && _editObservation?.Prepare(text) != true) return false;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsTarget(target)) return false;
+
+            delivered = SendText(text, target, cancellationToken);
+            return delivered;
+        }
+        finally
+        {
+            _editObservation?.Complete(delivered);
+        }
+    }
+
+    private bool SendText(string text, nint target, CancellationToken cancellationToken)
+    {
+        var normalized = text.ReplaceLineEndings("\n");
+        if (normalized.Contains('\n'))
+        {
+            // Chat editors can treat a synthetic Return key as Send. Only use direct replacement
+            // on native multiline controls. The caller offers recovery when delivery is unavailable.
+            if (_editObservation is not FocusedEditObservation native || normalized.Contains('\0') ||
+                cancellationToken.IsCancellationRequested || !IsTarget(target)) return false;
+            return native.TryReplaceMultiline(normalized.ReplaceLineEndings("\r\n"));
         }
 
-        var target = GetForegroundWindow();
-        if (target == 0) return false;
-
-        var normalized = text.ReplaceLineEndings("\n");
         var strokes = new List<Input>(2 * PageSize);
         for (var index = 0; index < normalized.Length; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var character = normalized[index];
-            var down = character == '\n' ? Keyboard(Return, 0, 0) : Keyboard(0, character, Unicode);
+            var down = Keyboard(0, character, Unicode);
             var up = down;
             up.Values.Keyboard.Flags |= Release;
             strokes.Add(down);
@@ -51,19 +88,44 @@ public sealed class SendInputTextInjector : ITextInjector
 
             if (strokes.Count < 2 * PageSize ||
                 (char.IsHighSurrogate(character) && index + 1 < normalized.Length)) continue;
-            if (!SendTo(target, strokes.ToArray())) return false;
+            if (!IsTarget(target) || !SendTo(target, strokes.ToArray())) return false;
             strokes.Clear();
         }
-        return strokes.Count == 0 || SendTo(target, strokes.ToArray());
+        return strokes.Count == 0 || (IsTarget(target) && SendTo(target, strokes.ToArray()));
     }
 
-    /// <summary>Synthesizes Control+V for clipboard integrations.</summary>
-    public static bool PressCtrlV()
+    private bool IsTarget(nint target) => target != 0 && target == GetForegroundWindow()
+        && (ExpectedWindow is null || ExpectedWindow == target)
+        && (ExpectedFocus is null || ExpectedFocus == FocusedControl());
+
+    /// <summary>Captures the active window and native focus before recording.</summary>
+    /// <param name="watchEdits">Allows a supported control to verify and observe the delivered span.</param>
+    public static SendInputTextInjector CaptureForeground(bool watchEdits = false)
     {
-        var target = GetForegroundWindow();
-        if (target == 0) return false;
-        return SendTo(target, [Keyboard(Control, 0, 0), Keyboard('V', 0, 0),
-                               Keyboard('V', 0, Release), Keyboard(Control, 0, Release)]);
+        var window = GetForegroundWindow();
+        _ = GetWindowThreadProcessId(window, out var owner);
+        var focus = FocusedControl();
+        var injector = new SendInputTextInjector
+        {
+            ExpectedWindow = owner == (uint)Environment.ProcessId ? 0 : window,
+            ExpectedFocus = focus,
+            _requiresSafeEditor = true,
+        };
+        if (owner != 0 && focus is { } editor && injector.IsTarget(window))
+        {
+            bool IsOriginalTarget() => injector.IsTarget(window);
+            var native = FocusedEditObservation.ForTarget(editor, owner, IsOriginalTarget, watchEdits, out var knownNativeEditor);
+            injector._editObservation = native;
+            if (native is null && !knownNativeEditor)
+                injector._editObservation = new AutomationEditObservation(owner, IsOriginalTarget, watchEdits);
+        }
+        return injector;
+    }
+
+    private static nint? FocusedControl()
+    {
+        var info = new GuiThreadInfo { Size = (uint)Marshal.SizeOf<GuiThreadInfo>() };
+        return GetGUIThreadInfo(0, ref info) && info.Focus != 0 ? info.Focus : null;
     }
 
     private static bool SendTo(nint target, Input[] batch) =>
@@ -115,8 +177,30 @@ public sealed class SendInputTextInjector : ITextInjector
         internal nint Marker;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GuiThreadInfo
+    {
+        internal uint Size;
+        internal uint Flags;
+        internal nint Active;
+        internal nint Focus;
+        internal nint Capture;
+        internal nint MenuOwner;
+        internal nint MoveSize;
+        internal nint Caret;
+        internal int CaretLeft;
+        internal int CaretTop;
+        internal int CaretRight;
+        internal int CaretBottom;
+    }
+
     [DllImport("user32.dll")]
     private static extern nint GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(nint window, out uint processId);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetGUIThreadInfo(uint thread, ref GuiThreadInfo info);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint count, Input[] inputs, int size);
 }

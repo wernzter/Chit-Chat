@@ -2,7 +2,91 @@
     xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     x:Class="ChitChat.App.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="WorkspaceCanvas" Color="#F6F7FA" />
+                    <SolidColorBrush x:Key="WorkspaceSidebar" Color="#EEF0F5" />
+                    <SolidColorBrush x:Key="WorkspaceCard" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="WorkspaceInk" Color="#1B2535" />
+                    <SolidColorBrush x:Key="WorkspaceMuted" Color="#46556A" />
+                    <SolidColorBrush x:Key="WorkspaceRule" Color="#DCE1EB" />
+                    <SolidColorBrush x:Key="WorkspaceSelected" Color="#DFE9FC" />
+                    <SolidColorBrush x:Key="WorkspaceBlueInk" Color="#1748A7" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="WorkspaceCanvas" Color="#171B22" />
+                    <SolidColorBrush x:Key="WorkspaceSidebar" Color="#11151C" />
+                    <SolidColorBrush x:Key="WorkspaceCard" Color="#202631" />
+                    <SolidColorBrush x:Key="WorkspaceInk" Color="#F1F4F9" />
+                    <SolidColorBrush x:Key="WorkspaceMuted" Color="#B6C1D0" />
+                    <SolidColorBrush x:Key="WorkspaceRule" Color="#333D4C" />
+                    <SolidColorBrush x:Key="WorkspaceSelected" Color="#243B65" />
+                    <SolidColorBrush x:Key="WorkspaceBlueInk" Color="#B6D0FF" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme />
+        <Style Selector="Window.workspace">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceCanvas}" />
+            <Setter Property="Foreground" Value="{DynamicResource WorkspaceInk}" />
+        </Style>
+        <Style Selector="Border.sidebar">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceSidebar}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource WorkspaceRule}" />
+            <Setter Property="BorderThickness" Value="0,0,1,0" />
+        </Style>
+        <Style Selector="Border.brand">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceSelected}" />
+            <Setter Property="CornerRadius" Value="10" />
+        </Style>
+        <Style Selector="Border.brand PathIcon">
+            <Setter Property="Foreground" Value="{DynamicResource WorkspaceBlueInk}" />
+        </Style>
+        <Style Selector="TextBlock.muted">
+            <Setter Property="Foreground" Value="{DynamicResource WorkspaceMuted}" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceCard}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource WorkspaceRule}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+        </Style>
+        <Style Selector="Arc.correction-countdown">
+            <Setter Property="Stroke" Value="{DynamicResource WorkspaceBlueInk}" />
+        </Style>
+        <Style Selector="Border.rule">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceRule}" />
+        </Style>
+        <Style Selector="ToggleButton.navigation">
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{DynamicResource WorkspaceMuted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="MinHeight" Value="38" />
+            <Setter Property="Padding" Value="10,6" />
+        </Style>
+        <Style Selector="ToggleButton.navigation:checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource WorkspaceSelected}" />
+            <Setter Property="Foreground" Value="{DynamicResource WorkspaceBlueInk}" />
+        </Style>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#1E57D1" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1B4ABB" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.record:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{TemplateBinding Background}" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
     </Application.Styles>
 </Application>

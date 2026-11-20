@@ -20,16 +20,25 @@ public enum PushToTalkKey
 }
 
 /// <summary>Observes a held key using a dedicated Win32 message thread.</summary>
-public sealed class PushToTalkHook : IHotkeySource
+public sealed class PushToTalkHook : IConfigurableHotkeySource
 {
     internal static readonly nint InputMarker = 0x43484354;
     private const uint Quit = 0x0012;
     private const int LowLevelKeyboard = 13;
     private readonly Lock _gate = new();
     private Listener? _listener;
+    private Shortcut _shortcut = new((int)PushToTalkKey.RightControl, HotkeyModifiers.None);
 
     /// <summary>The configured trigger.</summary>
-    public PushToTalkKey Key { get; set; } = PushToTalkKey.RightControl;
+    public PushToTalkKey Key
+    {
+        get => (PushToTalkKey)Volatile.Read(ref _shortcut).Key;
+        set => Configure((int)value, HotkeyModifiers.None);
+    }
+
+    /// <inheritdoc />
+    public void Configure(int virtualKey, HotkeyModifiers modifiers) =>
+        Volatile.Write(ref _shortcut, new Shortcut(virtualKey, modifiers));
 
     /// <inheritdoc />
     public event EventHandler? Pressed;
@@ -43,7 +52,7 @@ public sealed class PushToTalkHook : IHotkeySource
         {
             if (_listener is not null) return true;
 
-            var listener = new Listener(Key);
+            var listener = new Listener(() => Volatile.Read(ref _shortcut));
             listener.Thread.Start();
             var threadId = listener.Ready.Task.GetAwaiter().GetResult();
             if (threadId == 0)
@@ -89,18 +98,21 @@ public sealed class PushToTalkHook : IHotkeySource
     /// <inheritdoc />
     public void Dispose() => StopListening();
 
+    private sealed record Shortcut(int Key, HotkeyModifiers Modifiers);
+
     private sealed class Listener
     {
-        private readonly PushToTalkKey _key;
+        private readonly Func<Shortcut> _configuredShortcut;
+        private Shortcut? _heldShortcut;
         private bool _down;
         internal Thread Thread { get; }
         internal Channel<bool> Transitions { get; } = Channel.CreateUnbounded<bool>(
             new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         internal TaskCompletionSource<uint> Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        internal Listener(PushToTalkKey key)
+        internal Listener(Func<Shortcut> configuredShortcut)
         {
-            _key = key;
+            _configuredShortcut = configuredShortcut;
             Thread = new Thread(Pump) { IsBackground = true, Name = "Chit-Chat keyboard" };
         }
 
@@ -126,21 +138,64 @@ public sealed class PushToTalkHook : IHotkeySource
 
         private nint Observe(int code, nuint message, nint data)
         {
-            if (code == 0)
+            if (code == 0 && message is 0x0100 or 0x0101 or 0x0104 or 0x0105)
             {
                 var input = Marshal.PtrToStructure<KeyEvent>(data);
-                if (input.KeyCode == (uint)_key && input.Tag != InputMarker)
+                if (input.Tag != InputMarker)
                 {
-                    var down = message is 0x0100 or 0x0104;
-                    if (down != _down)
-                    {
-                        _down = down;
-                        Transitions.Writer.TryWrite(down);
-                    }
+                    ObserveShortcut((int)input.KeyCode, message is 0x0100 or 0x0104);
                 }
             }
             return CallNextHookEx(0, code, message, data);
         }
+
+        private void ObserveShortcut(int key, bool pressed)
+        {
+            var current = _configuredShortcut();
+            if (_down && _heldShortcut is { } held)
+            {
+                var modifierReleased = !pressed && (held.Modifiers & KeyModifier(key)) != HotkeyModifiers.None
+                    && (ActiveModifiers(key, pressed) & held.Modifiers) != held.Modifiers;
+                if (held != current || (!pressed && key == held.Key) || modifierReleased)
+                {
+                    _down = false;
+                    _heldShortcut = null;
+                    Transitions.Writer.TryWrite(false);
+                }
+                return;
+            }
+            if (!pressed || key != current.Key) return;
+            var modifiers = ActiveModifiers(key, pressed) & ~KeyModifier(key);
+            if (modifiers != current.Modifiers) return;
+            _heldShortcut = current;
+            _down = true;
+            Transitions.Writer.TryWrite(true);
+        }
+
+        private static HotkeyModifiers KeyModifier(int key) => key switch
+        {
+            0x11 or 0xA2 or 0xA3 => HotkeyModifiers.Control,
+            0x10 or 0xA0 or 0xA1 => HotkeyModifiers.Shift,
+            0x12 or 0xA4 or 0xA5 => HotkeyModifiers.Alt,
+            _ => HotkeyModifiers.None,
+        };
+
+        private static HotkeyModifiers ActiveModifiers(int key, bool pressed)
+        {
+            var result = HotkeyModifiers.None;
+            if (IsModifierDown(key, pressed, 0x11, 0xA2, 0xA3)) result |= HotkeyModifiers.Control;
+            if (IsModifierDown(key, pressed, 0x10, 0xA0, 0xA1)) result |= HotkeyModifiers.Shift;
+            if (IsModifierDown(key, pressed, 0x12, 0xA4, 0xA5)) result |= HotkeyModifiers.Alt;
+            return result;
+        }
+
+        private static bool IsModifierDown(int key, bool pressed, int generic, int left, int right) => key switch
+        {
+            _ when key == left => pressed || GetAsyncKeyState(right) < 0,
+            _ when key == right => pressed || GetAsyncKeyState(left) < 0,
+            _ when key == generic => pressed,
+            _ => GetAsyncKeyState(generic) < 0,
+        };
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -175,6 +230,8 @@ public sealed class PushToTalkHook : IHotkeySource
     private static extern bool UnhookWindowsHookEx(nint handle);
     [DllImport("user32.dll")]
     private static extern nint CallNextHookEx(nint handle, int code, nuint message, nint data);
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int virtualKey);
     [DllImport("user32.dll", EntryPoint = "GetMessageW")]
     private static extern int GetMessage(out Message message, nint window, uint min, uint max);
     [DllImport("user32.dll", EntryPoint = "PeekMessageW")]

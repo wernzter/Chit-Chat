@@ -44,6 +44,29 @@ public interface IHotkeySource : IDisposable
     void StopListening();
 }
 
+/// <summary>Modifiers that can accompany a recording shortcut.</summary>
+[Flags]
+public enum HotkeyModifiers
+{
+    /// <summary>No extra modifier.</summary>
+    None = 0,
+    /// <summary>Either Control key.</summary>
+    Control = 1,
+    /// <summary>Either Shift key.</summary>
+    Shift = 2,
+    /// <summary>Either Alt key.</summary>
+    Alt = 4,
+}
+
+/// <summary>A listener whose configured shortcut can be changed while idle.</summary>
+public interface IConfigurableHotkeySource : IHotkeySource
+{
+    /// <summary>Applies a new key and modifier combination.</summary>
+    /// <param name="virtualKey">The primary key.</param>
+    /// <param name="modifiers">Modifiers required alongside the primary key.</param>
+    void Configure(int virtualKey, HotkeyModifiers modifiers);
+}
+
 /// <summary>Delivers final text to the active editor.</summary>
 public interface ITextInjector
 {
@@ -92,7 +115,33 @@ public interface IPlatformServices
     IAudioCapture CreateCapture();
     /// <summary>Builds a push-to-talk listener.</summary>
     /// <param name="virtualKey">Configured Win32 virtual-key code.</param>
-    IHotkeySource CreateTrigger(int virtualKey);
+    /// <param name="modifiers">Modifiers required by the shortcut.</param>
+    IHotkeySource CreateTrigger(int virtualKey, HotkeyModifiers modifiers = HotkeyModifiers.None);
     /// <summary>Builds a text delivery service.</summary>
     ITextInjector CreateOutput();
+    /// <summary>Captures the destination for a recording before focus can change.</summary>
+    /// <param name="watchEdits">Allow the returned destination to observe verified edits to the inserted text.</param>
+    ITextInjector CaptureOutputTarget(bool watchEdits = false);
+    /// <summary>Builds a diagnostic injector scoped to the app's test window.</summary>
+    /// <param name="window">Native window containing the dedicated test field.</param>
+    ITextInjector CreateTestOutput(nint window);
+    /// <summary>Gets or stores API credentials in the per-user operating system vault.</summary>
+    IOpenAiKeyStore CreateOpenAiKeyStore();
+    /// <summary>Mutes playback until the returned scope is disposed.</summary>
+    IDisposable MutePlayback();
+    /// <summary>Plays the cue associated with the start of capture or completion of dictation.</summary>
+    /// <param name="starting">Whether capture is starting.</param>
+    void PlayRecordingCue(bool starting);
+    /// <summary>Prevents a desktop overlay from activating when shown or clicked.</summary>
+    /// <param name="window">Handle of the overlay window.</param>
+    /// <param name="clickThrough">Let mouse input pass to the underlying window.</param>
+    bool ConfigureRecordingOverlay(nint window, bool clickThrough);
+    /// <summary>Preserves the overlay window styles when the UI toolkit updates them.</summary>
+    /// <param name="current">The extended styles calculated by the toolkit.</param>
+    /// <param name="clickThrough">Let mouse input pass to the underlying window.</param>
+    uint RecordingOverlayStyles(uint current, bool clickThrough);
+    /// <summary>Returns the center of the display with the foreground editor, in desktop pixels.</summary>
+    (int X, int Y)? ActiveDisplayPoint();
+    /// <summary>Opens the operating system's microphone privacy settings.</summary>
+    void OpenMicrophoneSettings();
 }
